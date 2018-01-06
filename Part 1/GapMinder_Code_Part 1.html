@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Hans's replica</title>
+		<script type="text/javascript" src="d3.js"></script>
+		<style type="text/css">
+		
+		</style>
+
+
+		<table border="0">
+        <tr>
+            <th rowspan="2"><div id="chart1"></div></th>
+            <td><div id="chart2" ></div></td>
+            </tr>
+            <tr>
+            <td><div id="chart3" ></div></td>
+        </tr>
+    </table>
+
+	</head>
+
+	
+    <body>
+        
+		<script>
+		// to set the constants
+        var data;
+		var h = 600;
+		var w = 1200;
+        var buffer = 20;
+        var svg;
+        var xScale;
+        var yScale;
+        var rScale;
+        var cScale;
+        var yearCount = 0;
+        var initialTimer;
+        var selected;
+        var font = '"Helvetica Neue", Helvetica, Arial, sans-serif';
+            
+       
+        
+		d3.csv("./data/Gapminder_All_Time.csv", function(error, dataset) {
+            if(error) {
+                console.log(error)
+            } else {
+            data = dataset;
+            data.forEach(function(d){ // turn string characters into integers via unary plus
+            d.Year = +d.Year;
+            d.Population = +d.Population;
+            d.LifeExp = +d.LifeExp;
+            d.GDP = +d.GDP;
+            d.Area = +d.Area;
+            })}
+            
+            // create min/max values to construct scales
+            var minGDP = d3.min(data, function(d) {
+                       return +d.GDP; })
+            var maxGDP = d3.max(data, function(d) {
+                       return +d.GDP; })
+            var minLifeExp = d3.min(data, function(d) {
+                       return +d.LifeExp; })
+            var maxLifeExp = d3.max(data, function(d) {
+                       return +d.LifeExp; })
+            var minPop = d3.min(data, function(d) {
+                       return +d.Population; })
+            var maxPop = d3.max(data, function(d) {
+                       return +d.Population; })
+                
+            // create log scale for GDP on x-axis, this is to better display data
+            xScale = d3.scaleLog();
+            xScale.domain([minGDP, maxGDP]);
+            xScale.range([(buffer*2), w-buffer]);
+                
+            // linear scale for life expectancy
+            yScale = d3.scaleLinear();
+            yScale.domain([minLifeExp, maxLifeExp]);
+            yScale.range([h-(buffer*2), (buffer*2)]);
+            
+            // sqrt scale used here to determine circle radius. Overall it is mapped as area but this is done lower.
+            rScale = d3.scaleSqrt(); 
+            rScale.domain([minPop, maxPop]);
+            rScale.range([2, ((w*h)/10000)]);
+            
+            // yearScale controls the mouseover function on the year bar.
+            yearScale = d3.scaleLinear()
+                            .domain([70, 336])
+                            .range([0,130]);
+            
+            // cScale colours each region's circles a unique colour
+            cScale = d3.scaleOrdinal(d3.schemeCategory10);
+            cScale.domain(["Europe", "Asia", "Africa", "North America", "South America", "Australia", "Central America", "Oceania"])            
+            // preprocess data, nesting it and ordering it appropriately
+            data = prepData(data);
+            
+            // create the svg element    
+                        d3.select("body")
+                        .append("svg")
+                        .attr("width", w)
+                        .attr("height", h)
+                        svg = d3.select("svg");
+                        //The label and the color with continents
+svg.append("rect").attr("x", 80).attr("y", 200).attr("width", 20).attr("height", 20).attr("fill","#E74C3C");
+svg.append("rect").attr("x", 80).attr("y", 170).attr("width", 20).attr("height", 20).attr("fill","#F39C12");
+svg.append("rect").attr("x", 80).attr("y", 140).attr("width", 20).attr("height", 20).attr("fill","#996633");
+svg.append("rect").attr("x", 80).attr("y", 110).attr("width", 20).attr("height", 20).attr("fill","#2E86C1");
+svg.append("rect").attr("x", 80).attr("y", 80).attr("width", 20).attr("height", 20).attr("fill","green");
+svg.append("rect").attr("x", 80).attr("y", 50).attr("width", 20).attr("height", 20).attr("fill","#A569BD");
+svg.append("rect").attr("x", 80).attr("y", 20).attr("width", 20).attr("height", 20).attr("fill","gray");
+svg.append("rect").attr("x", 80).attr("y", 230).attr("width", 20).attr("height", 20).attr("fill","#FF33CC");
+//svg.append("rect").attr("x", 80).attr("y", 50).attr("width", 20).attr("height", 20).attr("fill","black");
+
+svg.append("text").attr("x", 105).attr("y",94 ).style("text-anchor", "start").attr("fill","black").text("Africa");
+svg.append("text").attr("x", 105).attr("y",125 ).style("text-anchor", "start").attr("fill","black").text("Europe");
+svg.append("text").attr("x", 105).attr("y",156 ).style("text-anchor", "start").attr("fill","black").text("Australia");
+svg.append("text").attr("x", 105).attr("y",187 ).style("text-anchor", "start").attr("fill","black").text("Asia");
+svg.append("text").attr("x", 105).attr("y",218 ).style("text-anchor", "start").attr("fill","black").text("North America");
+svg.append("text").attr("x", 105).attr("y",67 ).style("text-anchor", "start").attr("fill","black").text("South America");
+svg.append("text").attr("x", 105).attr("y",37 ).style("text-anchor", "start").attr("fill","black").text("Oceania");
+svg.append("text").attr("x", 105).attr("y",247 ).style("text-anchor", "start").attr("fill","black").text("Central America");
+           
+             // create x label
+            svg.append("text")
+                .attr("text-anchor", "end")
+                .attr("x", w-(w/12))
+                .attr("y", h - (h/15))
+                .attr("font-size", 20)
+                .attr("fill", "#800000")
+                .style("opacity", .6)
+                .attr("font-family", font)
+            .text("Income per capita, inflation-adjusted. (Dollars)");
+            
+            // create y label
+            svg.append("text")
+                .attr("text-anchor", "end")
+                .attr("x", -(w/6))
+                .attr("y", buffer*3)
+                .attr("font-size", 20)
+                .attr("transform", "rotate(-90)")
+                .attr("fill", "#800000")
+                .style("opacity", .6)
+                .text("Life Expectancy (Years)")
+                .attr("font-family", font);
+
+
+
+
+            
+            
+            // create year box which displays year and can control the year on mouseover
+            var labelYear= svg.append("text")
+                                .attr("class", "labelYear2")
+                                .attr("text-anchor", "start")
+                                .attr("x", w/60)
+                                .attr("y", h/1.05)
+                                .attr("font-size", 80)
+                                .attr("fill", "tomato")
+                                .style("opacity", .6)
+                                .attr("font-family", font)
+                                .on("mousemove", function(d) {
+                                        var coord = [0,0];
+                                        coord = d3.mouse(this);
+                                        var x = coord[0];
+                                        x = Math.round(yearScale(x));
+                                        if (initialTimer != null) clearInterval(initialTimer);
+                                        genVis(data[x].values)
+                                });
+            
+            // create text box to show when a region is selected
+            var selectRegion = svg.append("text")
+                                .attr("class", "regionClick")
+                                .attr("text-anchor", "end")
+                                .attr("x", w - (w/10))
+                                .attr("y", h - buffer*10)
+                                .attr("font-size", 60)
+                                .attr("fill", "gray")
+                                .style("opacity", .8)
+                                .attr("font-family", font);
+            
+            // text box to display a country's name when it is clicked on.
+            var selectCountry = svg.append("text")
+                                    .attr("class", "countryMouseover")
+                                    .attr("text-anchor", "end")
+                                    .attr("x", w - (w/10))
+                                    .attr("y", h - (h/8))
+                                    .attr("font-size", 25)
+                                    .attr("fill", "teal")
+                                    .style("opacity", .6)
+                                    .attr("font-family", font);
+            
+            
+    
+            // create xAxis
+            var xAxis = d3.axisBottom(xScale);
+            xAxis.tickArguments([7, "d"]);
+            //create yAxis
+            var yAxis = d3.axisLeft(yScale);
+            yAxis.tickArguments([4]);
+            var formatAsWholeNum = d3.format("d");
+            
+            // append axes
+            svg.append("g")
+                .attr("transform", "translate(0," +
+                     (h-buffer) + ")")
+                .call(xAxis);
+            
+            svg.append("g")
+                .attr("transform", "translate(" + 
+                     buffer + ",0)")
+                .call(yAxis);
+ 
+            // create timer which will call the generate vis function every second
+            initialTimer = setInterval(function() {
+                                if (yearCount == 70) clearInterval(initialTimer);
+                                genVis(data[yearCount].values);
+                                yearCount += 1;
+                                }, 1000);
+            
+            // call the timer to begin the animation
+            initialTimer;
+            
+			});
+            
+            
+            function prepData(data) {
+                // Nest data into array of year-based arrays
+                
+                // sort all data points into ascending year oder
+                data.sort(function(a,b) {
+                return a.Year - b.Year
+                });
+            
+            // create nest of all years to split them apart
+            var yearNest = d3.nest()
+                .key(function(d) { return d.Year;})
+                .entries(data);
+                
+            return yearNest;
+            }
+            
+        
+            function genVis(data_by_year) {
+                // this generates the primary visualisation
+                
+                // bind circles object to all circles on canvas and supply data, with country as key
+                var circles = svg.selectAll("circle")
+                .data(data_by_year, function key(d) {
+                return d.Country;
+                });
+                
+            // update selection
+            circles.transition()
+                    .delay(50)
+                    .duration(1000)
+                    .attr("cx", function(d) {
+						return xScale(+d.GDP);
+					})
+					.attr("cy", function(d) {
+						return yScale(+d.LifeExp);
+					})
+					.attr("r", function(d) {
+						return rScale(+d.Population);
+					})
+					.attr("fill", function(d) { 
+                        return cScale(d.Region)
+                    })
+                    .style("opacity", .8)
+                    .attr("stroke", "black");
+                              
+            // enter selection
+			circles.enter()
+					.append("circle")
+					.attr("cx", function(d) {
+						return xScale(+d.GDP);
+					})
+					.attr("cy", function(d) {
+						return yScale(+d.LifeExp);
+					})
+					.attr("r", function(d) {
+						return rScale(Math.sqrt(+d.Population / Math.PI)); // this maps the size of circle to area
+					})
+					.attr("fill", function(d) { 
+                        return cScale(d.Region)
+                    })
+                    .attr("class", function(d) {
+                            return (d.Region).replace(" ", "_"); // handle regions with spaces in name
+                    })
+                    .attr("stroke", "black")
+                    .style("opacity", .8)
+                    .on("mouseover", function(d) { // highlight selected circle
+                        svg.selectAll("circle") // turn all other circles highly transparent
+                                .transition()
+                                .duration(300)
+                                .style("opacity", 0.2);
+                
+                        d3.select(this).style("opacity", 1) // turn the current circle to normal opacity
+                            .transition()
+                            .duration(0);
+                
+                        svg.select(".regionClick")
+                            .text("")
+                            .transition()
+                            .duration(100);
+                        
+                        svg.select(".countryMouseover") // tell which country it is in the country box
+                            .text('Country: ' + d.Country + ' Population: ' + d.Population + ' code:' + d.Code)
+                            .transition()
+                            .duration(100);
+
+    
+                    })
+                    .on("mouseout", function(d) { 
+                        if (selected != true) {
+                        svg.selectAll("circle")
+                                .transition()
+                                .duration(0)
+                                .style("opacity", 1);
+                        }
+                
+                        
+                        svg.select(".countryMouseover")
+                                    .text('')
+                                    .transition()
+                                    .duration(100);
+                    })
+                    .on("click", function(d) {
+                        selected = true;
+                        var r = d3.select(this).data();
+                        
+                        svg.selectAll("circle")
+                            .style("opacity", 0.1)
+                            .transition()
+                            .duration(300);
+                
+                        svg.select(".regionClick")
+                            .text(r[0].Region + " Region")
+                            .attr("fill", cScale(r[0].Region))
+                            .transition()
+                            .duration(100);
+                
+                        svg.selectAll("." + (r[0].Region).replace(" ", "_"))
+                            .style("opacity", 1)
+                            .transition()
+                            .duration(0);
+                    })
+            
+                    .transition()
+                    .duration(1000);
+            
+            
+            // exit selection
+            circles.exit()
+                    .transition()
+                    .duration(50)
+                    .remove();
+
+            svg.select(".labelYear2") // control the year text to reflect teh data
+                .transition()
+                .text(data_by_year[0].Year);
+                
+            
+            }
+
+            
+		</script>
+
+<!-- <button onclick=""> -->
+<img id="imageid2" src="./data/play.png" style="width:20px">
+<img id="imageid" src="./data/pause.png" style="width:12px;display:none">
+<!-- </button> -->
+<label for="myDropDownList">Country</label>
+<label for="country">Country</label>
+<select id="country">
+<option selected="All">All</option> <option value="China" >China</option> <option value="India">India</option> <option value="Brazil">Brazil</option> <option value="United States">United States</option> <option value="Indonesia">Indonesia</option> <option value="Pakistan">Pakistan</option> <option value="Nigeria">Nigeria</option> <option value="Bangladesh">Bangladesh</option> <option value="Russia">Russia</option> <option value="Maxico">Maxico</option> 
+<script>
+$("#imageid").click(function(){ $("#imageid2").show();mediaflag= false;$("#imageid").hide();})
+$("#imageid2").click(function(){ $("#imageid").show();mediaflag = true;$("#imageid2").hide();})
+$("#year").change(function(){$("#imageid").trigger('click')})
+</script>    
+</body>
+</html>
